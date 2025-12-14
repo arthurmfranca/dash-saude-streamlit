@@ -1,0 +1,12 @@
+# venv
+.venv/
+
+# Arquivos temporários
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+
+# Streamlit secrets (quando usar)
+.streamlit/secrets.toml
