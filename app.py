@@ -334,6 +334,34 @@ if uploaded_file is not None:
                             color='Cluster', title="Clusters Automáticos")
             st.plotly_chart(fig)
 
+    # =====================================
+    # ANÁLISE 6: PCA (Redução Dimensional)
+    # =====================================       
+
+    elif analise_tipo == "📉 6. PCA (Redução Dimensional)":
+        st.header("📉 6. PCA - Redução Dimensional")
+        vars_pca = st.multiselect("🔢 Variáveis", num_cols, default=num_cols[:4])
+        
+        if st.button("📉 Executar PCA", type="primary") and len(vars_pca)>=2:
+            from sklearn.decomposition import PCA
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(df[vars_pca].dropna())
+            
+            pca = PCA()
+            X_pca = pca.fit_transform(X_scaled)
+            
+            st.subheader("📊 Variância Explicada")
+            var_exp = pd.DataFrame({
+                'Componente': [f'PC{i+1}' for i in range(len(pca.explained_variance_ratio_))],
+                'Variância %': (pca.explained_variance_ratio_*100).round(1)
+            })
+            st.dataframe(var_exp)
+            
+            fig = px.scatter(x=X_pca[:,0], y=X_pca[:,1], 
+                            title="PCA 2D - Primeiros 2 Componentes")
+            st.plotly_chart(fig)
+
+
 
 
 
