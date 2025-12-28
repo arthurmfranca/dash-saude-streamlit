@@ -1,7 +1,11 @@
-import streamlit as st
-import pandas as pd
-import plotly.express as px
+"""
+🧮 FERRAMENTA DE ANÁLISE ESTATÍSTICA AVANÇADA
+Autor: Arthur (Estudos Ciência de Dados)
+Objetivo: Análise descritiva + testes inferenciais + ML com interpretação automática
+Skills: Estatística aplicada, Streamlit, Pandas, SciPy, Scikit-learn
+"""
 
+<<<<<<< HEAD
 @st.cache_data
 def convert_df(df):
     return df.to_csv(index=False).encode("utf-8")
@@ -118,45 +122,354 @@ if "df_fato" in st.session_state:
         uf_sel = st.sidebar.multiselect("UF", opcoes_uf, default=opcoes_uf)
         if uf_sel:  # só filtra se houver seleção
             df = df[df["UF"].isin(uf_sel)]
+=======
+import streamlit as st  # Interface web interativa
+import pandas as pd     # Manipulação de dados
+import numpy as np      # Cálculos numéricos
+import plotly.express as px      # Gráficos interativos
+import plotly.graph_objects as go # Gráficos avançados
+from plotly.subplots import make_subplots  # Subplots múltiplos
+import scipy.stats as stats       # TESTES ESTATÍSTICOS (t-test, ANOVA, etc)
+from sklearn.preprocessing import StandardScaler  # Padronização ML
+from sklearn.decomposition import PCA            # Análise de componentes
+from sklearn.cluster import KMeans               # Clustering
+import warnings
+warnings.filterwarnings('ignore')  # Remove warnings desnecessários
 
-# Município
-    if "Município" in df.columns:
-        opcoes_mun = sorted(df["Município"].dropna().unique())
-        mun_sel = st.sidebar.multiselect("Município", opcoes_mun)
-        if mun_sel:
-            df = df[df["Município"].isin(mun_sel)]
+# =============================================================================
+# CONFIGURAÇÃO DA PÁGINA (EXECUTA 1x por sessão)
+# =============================================================================
+st.set_page_config(
+    page_title="🧮 Estatística Avançada - Estudos", 
+    layout="wide",  # Layout largo (melhor para dashboards)
+    initial_sidebar_state="expanded"  # Sidebar sempre aberta
+)
 
-# Adesão
-    if "Adesão" in df.columns:
-        opcoes_adesao = sorted(df["Adesão"].dropna().unique())
-        adesao_sel = st.sidebar.multiselect("Adesão", opcoes_adesao, default=opcoes_adesao)
-        if adesao_sel:
-            df = df[df["Adesão"].isin(adesao_sel)]
+# Função utilitária: Export CSV (cache para performance)
+@st.cache_data  # 🚀 CACHE: executa 1x, reutiliza resultado
+def convert_df(df):
+    """Converte DataFrame para bytes CSV (download)"""
+    return df.to_csv(index=False).encode("utf-8")
 
-# Macrorregião
-    if "Macrorregião de Saúde" in df.columns:
-        opcoes_macro = sorted(df["Macrorregião de Saúde"].dropna().unique())
-        macro_sel = st.sidebar.multiselect("Macrorregião de Saúde", opcoes_macro)
-        if macro_sel:
-            df = df[df["Macrorregião de Saúde"].isin(macro_sel)]
+# =============================================================================
+# INTERFACE PRINCIPAL
+# =============================================================================
+st.title("🧮 Ferramenta de Análise Estatística Avançada")
+st.markdown("""
+**Para seus estudos de estatística aplicada e machine learning**
+- 📊 Análise descritiva completa
+- 🔍 Correlação + testes inferenciais  
+- 🤖 Clustering + PCA
+- 💡 Interpretação automática em português
+""")
 
-# Data
-    if "Data" in df.columns and str(df["Data"].dtype).startswith("datetime"):
-        if not df["Data"].isna().all():
-            data_min = df["Data"].min()
-            data_max = df["Data"].max()
-            data_inicio, data_fim = st.sidebar.date_input(
-                "Intervalo de Data",
-                value=(data_min.date(), data_max.date())
+# =====================================
+# PASSO 1: UPLOAD DE DADOS
+# =====================================
+uploaded_file = st.file_uploader(
+    "📁 Carregue sua base de dados (CSV/Excel)", 
+    type=['csv','xlsx'],
+    help="Qualquer dataset numérico/categórico"
+)
+
+if uploaded_file is not None:
+    # Detecta formato automaticamente
+    if uploaded_file.name.endswith('.csv'):
+        df = pd.read_csv(uploaded_file, encoding="utf-8")
+    else:
+        df = pd.read_excel(uploaded_file)
+    
+    # ✅ CONFIRMAÇÃO VISUAL
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Linhas", f"{df.shape[0]:,}")
+    col2.metric("Colunas", df.shape[1])
+    col3.metric("Numéricas", len(df.select_dtypes(include=[np.number]).columns))
+    col4.metric("Categóricas", len(df.select_dtypes(exclude=[np.number]).columns))
+    
+    st.dataframe(df.head(10), use_container_width=True)
+
+    # =====================================
+    # 🔍 DIAGNÓSTICO AUTOMÁTICO
+    # =====================================
+    st.subheader("🔍 Diagnóstico Automático do Dataset")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.write("**📋 Todas as colunas:**")
+        for i, col in enumerate(df.columns):
+            st.write(f"{i+1}. **{col}** ({df[col].dtype})")
+    with col2:
+        st.write("**🔢 Colunas Numéricas:**")
+        num_cols_diag = df.select_dtypes(include=[np.number]).columns.tolist()
+        for col in num_cols_diag:
+            st.write(f"• {col}")
+    with col3:
+        st.write("**🏷️ Colunas Categóricas:**")
+        cat_cols_diag = df.select_dtypes(exclude=[np.number]).columns.tolist()
+        for col in cat_cols_diag:
+            st.write(f"• {col}")
+    # FIM DIAGNÓSTICO
+    
+    # =====================================
+    # PASSO 2: MENU LATERAL - SELEÇÃO DE ANÁLISES
+    # =====================================
+    st.sidebar.header("🔍 Escolha sua Análise")
+    analise_tipo = st.sidebar.selectbox("Tipo de análise", [
+    "📊 1. Análise Descritiva", 
+    "🔗 2. Correlação", 
+    "🏥 3. Análise Saúde",           # ← ADICIONE ESTA LINHA
+    "📈 4. Testes Estatísticos", 
+    "🎭 5. Clustering K-Means",
+    "📉 6. PCA (Redução Dimensional)"
+    ])
+
+    # =====================================
+    # VARIÁVEIS GLOBAIS (CORREÇÃO DO ERRO)
+    # =====================================
+    num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    cat_cols = df.select_dtypes(exclude=[np.number]).columns.tolist()
+>>>>>>> 88a5fd1 (feat: ferramenta estatística COMPLETA v3.0)
+
+
+    
+    # =====================================
+    # ANÁLISE 1: DESCRITIVA (ESTATÍSTICAS BÁSICAS)
+    # =====================================
+    if analise_tipo == "📊 1. Análise Descritiva":
+        st.header("📊 1. Análise Descritiva Completa")
+        st.markdown("**CONCEITO:** Resumo estatístico + normalidade + visualizações diagnósticas")
+        
+        # Seleciona variáveis numéricas
+        num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            vars_analise = st.multiselect(
+                "🔢 Variáveis para análise", 
+                num_cols, 
+                default=num_cols[:3]  # Pega primeiras 3 automaticamente
             )
-            # garante que veio uma tupla com 2 datas
-            if isinstance(data_inicio, type(data_max.date())) and isinstance(data_fim, type(data_max.date())):
-                df = df[
-                    (df["Data"] >= pd.to_datetime(data_inicio)) &
-                    (df["Data"] <= pd.to_datetime(data_fim))
-                ]
+        with col2:
+            var_alvo = st.selectbox("📍 Variável alvo (gráficos)", num_cols)
+        
+        if st.button("🔬 Executar Análise Descritiva", type="primary") and vars_analise:
+            st.subheader("📈 Tabela de Estatísticas Descritivas")
+            
+            # Tabela completa (transposta para melhor visualização)
+            desc_stats = df[vars_analise].describe().round(3).T
+            st.dataframe(desc_stats, use_container_width=True)
+            
+            # 💡 INTERPRETAÇÃO AUTOMÁTICA
+            st.subheader("💡 Interpretação Estatística Automática")
+            for var in vars_analise:
+                # Cálculos chave
+                media = df[var].mean()
+                dp = df[var].std()
+                cv = (dp/media)*100 if media != 0 else 0  # Coeficiente de variação
+                
+                # Teste de normalidade (Shapiro-Wilk)
+                stat, p_shapiro = stats.shapiro(df[var].dropna()[:5000])  # Limita amostra
+                
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Média", f"{media:.2f}")
+                col2.metric("DP", f"{dp:.2f}")
+                col3.metric("CV%", f"{cv:.1f}%")
+                
+                # Interpretação normalidade
+                if p_shapiro < 0.05:
+                    st.error(f"❌ **{var}:** Não normal (Shapiro p={p_shapiro:.4f})")
+                    st.info("→ Use testes não-paramétricos (Mann-Whitney, Kruskal-Wallis)")
+                else:
+                    st.success(f"✅ **{var}:** Normal (Shapiro p={p_shapiro:.4f})")
+                    st.info("→ Use testes paramétricos (t-test, ANOVA)")
+            
+            # 📊 VISUALIZAÇÕES DIAGNÓSTICAS
+            st.subheader("📊 Visualizações Diagnósticas")
+            fig = make_subplots(
+                rows=2, cols=2,
+                subplot_titles=('📈 Histograma', '📦 Boxplot', '📊 QQ-Plot Normalidade', '🎲 Densidade'),
+                specs=[[{"secondary_y": False}, {"secondary_y": False}],
+                       [{"secondary_y": False}, {"secondary_y": False}]]
+            )
+            
+            # Histograma
+            fig.add_trace(go.Histogram(x=df[var_alvo], name="Histograma", nbinsx=30), row=1, col=1)
+            
+            # Boxplot
+            fig.add_trace(go.Box(y=df[var_alvo], name="Boxplot"), row=1, col=2)
+            
+            # QQ-Plot (diagnóstico normalidade)
+            try:
+                from scipy.stats import norm, probplot
+                qq_data = df[var_alvo].dropna()
+                (osm, osr), (slope, intercept, r) = probplot(qq_data, dist="norm", plot=False)
+                fig.add_trace(go.Scatter(x=osm, y=osr, mode='markers+lines', 
+                           name="QQ-Plot", line=dict(color='blue')), row=2, col=1)
+            except:
+                fig.add_trace(go.Scatter(x=[0,1], y=[0,1], mode='lines', 
+                           name="QQ-Plot (simplificado)"), row=2, col=1)
+            # KDE (densidade)
+            fig.add_trace(go.Histogram(x=df[var_alvo], histnorm='probability density'), row=2, col=2)
+            
+            fig.update_layout(height=600, showlegend=False, title_text="Diagnósticos Visuais")
+            st.plotly_chart(fig, use_container_width=True)
+    
+    # =====================================
+    # ANÁLISE 2: CORRELAÇÃO
+    # =====================================
+    elif analise_tipo == "🔗 2. Correlação":
+        st.header("🔗 2. Matriz de Correlação")
+        st.markdown("""
+        **CONCEITO:** Mede relação linear entre variáveis (Pearson r ∈ [-1,1])
+        - **r > 0.7 ou r < -0.7:** Correlação forte
+        - **p-valor < 0.05:** Significativa estatisticamente
+        """)
+        
+        num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        
+        if len(num_cols) >= 2 and st.button("🔗 Calcular Correlação", type="primary"):
+            # Matriz Pearson
+            corr_matrix = df[num_cols].corr()
+            
+            # Heatmap interativo
+            fig = px.imshow(
+                corr_matrix.round(3),
+                title="🔥 Matriz de Correlação Pearson",
+                color_continuous_scale='RdBu_r',  # Vermelho=negativo, Azul=positivo
+                aspect="auto"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Correlações fortes
+            st.subheader("🚨 Correlações Fortes |r| > 0.7")
+            mask = (abs(corr_matrix) > 0.7) & (corr_matrix != 1.0)
+            strong_corr = corr_matrix[mask].stack().reset_index()
+            strong_corr.columns = ['Variável 1', 'Variável 2', 'r_Pearson']
+            strong_corr['Força'] = pd.cut(abs(strong_corr['r_Pearson']), 
+                                        bins=[0.7, 0.8, 0.9, 1], 
+                                        labels=['Forte', 'Muito Forte', 'Perfeita'])
+            st.dataframe(strong_corr.round(3))
+
+    # =====================================
+    # ANÁLISE 3: DENGUE/SAÚDE PÚBLICA
+    # =====================================
+
+    elif analise_tipo == "🏥 3. Análise Saúde":
+        st.header("🏥 3. Análise Saúde - TOP Regiões")
+        
+        num_cols = df.select_dtypes(include=[np.number]).columns
+        cat_cols = df.select_dtypes(exclude=[np.number]).columns
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            col_casos = st.selectbox("📊 Casos/Óbitos", num_cols)
+        with col2:
+            col_regiao = st.selectbox("🏛️ Município/UF", cat_cols)
+        
+        if st.button("🚨 TOP 10 Regiões", type="primary"):
+            # TOP 10 genérico
+            top10 = df.nlargest(10, col_casos)[[col_regiao, col_casos]].round(1)
+            top10.columns = ['Região', 'Valor']
+            
+            st.subheader("🔥 TOP 10 Regiões MAIS AFETADAS")
+            st.dataframe(top10, use_container_width=True)
+            
+            # Gráfico
+            fig = px.bar(top10, x='Região', y='Valor', 
+                        title=f"TOP 10 - {col_casos}", 
+                        color='Valor')
+            st.plotly_chart(fig, use_container_width=True)
+    
+    # =====================================
+    # ANÁLISE 4: TESTES ESTATÍSTICOS (CORRIGIDO)
+    # =====================================
+    elif analise_tipo == "📈 4. Testes Estatísticos":
+        st.header("📈 4. Testes Inferenciais")
+        st.markdown("**CONCEITO:** Verifica hipóteses (H0 vs H1) com p-valor < 0.05")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            teste_tipo = st.selectbox("Teste", ["t-test (2 grupos)", "ANOVA (3+ grupos)", "Qui-Quadrado"])
+        with col2:
+            var_resposta = st.selectbox("📊 Variável numérica", num_cols)
+        
+        if teste_tipo == "t-test (2 grupos)" and st.button("🔬 Executar t-test", type="primary"):
+            grupo_var = st.selectbox("🏷️ Variável grupos", cat_cols)
+            grupos = df[grupo_var].dropna().unique()[:2]  # Primeiros 2 grupos
+            
+            if len(grupos) >= 2:
+                grupo1 = df[df[grupo_var] == grupos[0]][var_resposta].dropna()
+                grupo2 = df[df[grupo_var] == grupos[1]][var_resposta].dropna()
+                
+                if len(grupo1) > 1 and len(grupo2) > 1:
+                    t_stat, p_val = stats.ttest_ind(grupo1, grupo2)
+                    
+                    col1, col2 = st.columns(2)
+                    col1.metric("📊 t-statistic", f"{t_stat:.3f}")
+                    col2.metric("🎯 p-valor", f"{p_val:.4f}")
+                    
+                    st.subheader("💡 Interpretação")
+                    if p_val < 0.05:
+                        st.error(f"🚨 **REJEITA H0** (p={p_val:.4f})")
+                        st.success(f"✅ {grupos[0]} **≠** {grupos[1]} em {var_resposta}")
+                    else:
+                        st.info(f"ℹ️ **NÃO rejeita H0** (p={p_val:.4f})")
+                        st.warning(f"{grupos[0]} **≈** {grupos[1]} em {var_resposta}")
+                else:
+                    st.warning("❌ Poucos dados em um dos grupos")
+            else:
+                st.warning("❓ Selecione variável com ≥2 grupos")
+
+    elif analise_tipo == "🎭 5. Clustering K-Means":
+        st.header("🎭 5. Clustering Automático")
+        st.markdown("**CONCEITO:** Agrupa observações similares automaticamente")
+        
+        vars_cluster = st.multiselect("🔢 Variáveis para cluster", num_cols, default=num_cols[:3])
+        n_clusters = st.slider("Número de clusters", 2, 8, 4)
+        
+        if st.button("🤖 Executar Clustering", type="primary") and len(vars_cluster)>=2:
+            # Padroniza + clusteriza
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(df[vars_cluster].dropna())
+            
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            clusters = kmeans.fit_predict(X_scaled)
+            
+            df_cluster = df.dropna(subset=vars_cluster).copy()
+            df_cluster['Cluster'] = clusters
+            
+            st.subheader("📊 Resultado Clustering")
+            st.dataframe(df_cluster.groupby('Cluster')[vars_cluster].mean().round(2))
+            
+            # Gráfico 2D
+            fig = px.scatter(df_cluster, x=vars_cluster[0], y=vars_cluster[1], 
+                            color='Cluster', title="Clusters Automáticos")
+            st.plotly_chart(fig)
+            
+    elif analise_tipo == "📉 6. PCA (Redução Dimensional)":
+        st.header("📉 6. PCA - Redução Dimensional")
+        vars_pca = st.multiselect("🔢 Variáveis", num_cols, default=num_cols[:4])
+        
+        if st.button("📉 Executar PCA", type="primary") and len(vars_pca)>=2:
+            from sklearn.decomposition import PCA
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(df[vars_pca].dropna())
+            
+            pca = PCA()
+            X_pca = pca.fit_transform(X_scaled)
+            
+            st.subheader("📊 Variância Explicada")
+            var_exp = pd.DataFrame({
+                'Componente': [f'PC{i+1}' for i in range(len(pca.explained_variance_ratio_))],
+                'Variância %': (pca.explained_variance_ratio_*100).round(1)
+            })
+            st.dataframe(var_exp)
+            
+            fig = px.scatter(x=X_pca[:,0], y=X_pca[:,1], 
+                            title="PCA 2D - Primeiros 2 Componentes")
+            st.plotly_chart(fig)
 
 
+<<<<<<< HEAD
     # -------------------------
     # PRÉ-VISUALIZAÇÃO JÁ FILTRADA
     # -------------------------
@@ -332,5 +645,32 @@ if "df_fato" in st.session_state:
 
             st.plotly_chart(fig, use_container_width=True)
 
+=======
+   
+    # =====================================
+    # BARRA LATERAL: EXPORT
+    # =====================================
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("💾 Exportar")
+    csv_bytes = convert_df(df)
+    st.sidebar.download_button(
+        "📥 Dados Originais CSV",
+        csv_bytes,
+        "dados_originais.csv",
+        "text/csv"
+    )
+
+# =====================================
+# ESTADO INICIAL (SEM DADOS)
+# =====================================
+>>>>>>> 88a5fd1 (feat: ferramenta estatística COMPLETA v3.0)
 else:
-    st.info("Informe o nome do CSV na barra lateral e clique em 'Carregar CSV'.")
+    st.info("""
+    👆 **Carregue um dataset CSV/Excel para começar!**
+    
+    **Exemplos recomendados para estudo:**
+    - Iris (classificação)
+    - Boston Housing (regressão)  
+    - Titanic (análise exploratória)
+    - Qualquer base com ≥3 colunas numéricas
+    """)
