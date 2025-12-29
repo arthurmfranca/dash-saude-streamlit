@@ -76,7 +76,7 @@ uploaded_file = st.file_uploader(
 if uploaded_file is not None or 'uploaded_df' in st.session_state:
     # Fonte: upload de arquivo ou dataset gerado em sessão
     if 'uploaded_df' in st.session_state:
-        df = st.session_state.pop('uploaded_df')
+        df = st.session_state['uploaded_df']
     else:
         # Detecta formato automaticamente
         if uploaded_file.name.endswith('.csv'):
@@ -97,7 +97,7 @@ if uploaded_file is not None or 'uploaded_df' in st.session_state:
     col3.metric("Numéricas", len(df.select_dtypes(include=[np.number]).columns))
     col4.metric("Categóricas", len(df.select_dtypes(exclude=[np.number]).columns))
     
-    st.dataframe(df.head(10), use_container_width=True)
+    st.dataframe(df.head(10), width="stretch")
 
 
     # =====================================
@@ -161,7 +161,7 @@ if uploaded_file is not None or 'uploaded_df' in st.session_state:
             
             # Tabela completa (transposta para melhor visualização)
             desc_stats = compute_descritiva(df, vars_analise)
-            st.dataframe(desc_stats, use_container_width=True)
+            st.dataframe(desc_stats, width="stretch")
             
             # 💡 INTERPRETAÇÃO AUTOMÁTICA
             st.subheader("💡 Interpretação Estatística Automática")
@@ -216,7 +216,7 @@ if uploaded_file is not None or 'uploaded_df' in st.session_state:
             fig.add_trace(go.Histogram(x=df[var_alvo], histnorm='probability density'), row=2, col=2)
             
             fig.update_layout(height=600, showlegend=False, title_text="Diagnósticos Visuais")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
     
     # =====================================
     # ANÁLISE 2: CORRELAÇÃO
@@ -242,7 +242,7 @@ if uploaded_file is not None or 'uploaded_df' in st.session_state:
                 color_continuous_scale='RdBu_r',  # Vermelho=negativo, Azul=positivo
                 aspect="auto"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
             
             # Correlações fortes
             st.subheader("🚨 Correlações Fortes |r| > 0.7")
@@ -275,13 +275,13 @@ if uploaded_file is not None or 'uploaded_df' in st.session_state:
             top10.columns = ['Região', 'Valor']
             
             st.subheader("🔥 TOP 10 Regiões MAIS AFETADAS")
-            st.dataframe(top10, use_container_width=True)
+            st.dataframe(top10, width="stretch")
             
             # Gráfico
             fig = px.bar(top10, x='Região', y='Valor', 
                         title=f"TOP 10 - {col_casos}", 
                         color='Valor')
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     # =====================================
     # ANÁLISE 4: TESTES ESTATÍSTICOS
@@ -296,34 +296,34 @@ if uploaded_file is not None or 'uploaded_df' in st.session_state:
         with col2:
             var_resposta = st.selectbox("📊 Variável numérica", num_cols)
         
-        if teste_tipo == "t-test (2 grupos)" and st.button("🔬 Executar t-test", type="primary"):
+        if teste_tipo == "t-test (2 grupos)":
             grupo_var = st.selectbox("🏷️ Variável grupos", cat_cols)
-            grupos = df[grupo_var].dropna().unique()[:2]  # Primeiros 2 grupos
-            
-            if len(grupos) >= 2:
-                grupo1 = df[df[grupo_var] == grupos[0]][var_resposta].dropna()
-                grupo2 = df[df[grupo_var] == grupos[1]][var_resposta].dropna()
-                
-                if len(grupo1) > 1 and len(grupo2) > 1:
-                    t_stat, p_val = stats.ttest_ind(grupo1, grupo2)
+            if st.button("🔬 Executar t-test", type="primary"):
+                grupos = df[grupo_var].dropna().unique()[:2]
+                if len(grupos) >= 2:
+                    grupo1 = df[df[grupo_var] == grupos[0]][var_resposta].dropna()
+                    grupo2 = df[df[grupo_var] == grupos[1]][var_resposta].dropna()
                     
-                    col1, col2 = st.columns(2)
-                    col1.metric("📊 t-statistic", f"{t_stat:.3f}")
-                    col2.metric("🎯 p-valor", f"{p_val:.4f}")
-                    
-                    st.subheader("💡 Interpretação")
-                    if p_val < 0.05:
-                        st.error(f"🚨 **REJEITA H0** (p={p_val:.4f})")
-                        st.success(f"✅ {grupos[0]} **≠** {grupos[1]} em {var_resposta}")
+                    if len(grupo1) > 1 and len(grupo2) > 1:
+                        t_stat, p_val = stats.ttest_ind(grupo1, grupo2)
+                        
+                        col1, col2 = st.columns(2)
+                        col1.metric("📊 t-statistic", f"{t_stat:.3f}")
+                        col2.metric("🎯 p-valor", f"{p_val:.4f}")
+                        
+                        st.subheader("💡 Interpretação")
+                        if p_val < 0.05:
+                            st.error(f"🚨 **REJEITA H0** (p={p_val:.4f})")
+                            st.success(f"✅ {grupos[0]} **≠** {grupos[1]} em {var_resposta}")
+                        else:
+                            st.info(f"ℹ️ **NÃO rejeita H0** (p={p_val:.4f})")
+                            st.warning(f"{grupos[0]} **≈** {grupos[1]} em {var_resposta}")
                     else:
-                        st.info(f"ℹ️ **NÃO rejeita H0** (p={p_val:.4f})")
-                        st.warning(f"{grupos[0]} **≈** {grupos[1]} em {var_resposta}")
+                        st.warning("❌ Poucos dados em um dos grupos")
                 else:
-                    st.warning("❌ Poucos dados em um dos grupos")
-            else:
-                st.warning("❓ Selecione variável com ≥2 grupos")
+                    st.warning("❓ Selecione variável com ≥2 grupos")
+        
         elif teste_tipo == "ANOVA (3+ grupos)":
-
             grupo_var = st.selectbox("🏷️ Variável grupos", cat_cols)
             grupos = df[grupo_var].dropna().unique()
             
@@ -339,6 +339,7 @@ if uploaded_file is not None or 'uploaded_df' in st.session_state:
                     st.error(f"🚨 **REJEITA H0** - Pelo menos 1 grupo difere!")
                 else:
                     st.success("ℹ️ **NÃO rejeita H0** - Grupos similares")
+        
         elif teste_tipo == "Qui-Quadrado":
             col1_var = st.selectbox("🏷️ Variável 1 (categórica)", cat_cols)
             col2_var = st.selectbox("🏷️ Variável 2 (categórica)", cat_cols)
@@ -355,91 +356,7 @@ if uploaded_file is not None or 'uploaded_df' in st.session_state:
                     st.error("🚨 **REJEITA H0** - Variáveis são dependentes!")
                 else:
                     st.success("ℹ️ **NÃO rejeita** - Variáveis independentes")
-    # =====================================
-    # ANÁLISE 5: Clustering K-Means
-    # =====================================
-    elif analise_tipo == "🎭 5. Clustering K-Means":
-        st.header("🎭 5. Clustering Automático")
-        st.markdown("**CONCEITO:** Agrupa observações similares automaticamente")
-        
-        vars_cluster = st.multiselect("🔢 Variáveis para cluster", num_cols, default=num_cols[:3])
-        n_clusters = st.slider("Número de clusters", 2, 8, 4)
-        
-        if st.button("🤖 Executar Clustering", type="primary") and len(vars_cluster)>=2:
-            # Padroniza + clusteriza
-            scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(df[vars_cluster].dropna())
 
-            st.subheader("📈 Elbow Method - Otimização K")
-            inertias = []
-            K_range = range(1, 11)
-            X_sample = X_scaled[:1000]  # Amostra para velocidade
-
-            for k in K_range:
-                kmeans_temp = KMeans(n_clusters=k, random_state=42, n_init=10)
-                kmeans_temp.fit(X_sample)
-                inertias.append(kmeans_temp.inertia_)
-
-            fig_elbow = px.line(x=list(K_range), y=inertias, 
-                            title="Escolha Ótima de K", markers=True)
-            st.plotly_chart(fig_elbow, use_container_width=True)
-            
-            kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-            clusters = kmeans.fit_predict(X_scaled)
-            
-            df_cluster = df.dropna(subset=vars_cluster).copy()
-            df_cluster['Cluster'] = clusters
-            
-            st.subheader("📊 Resultado Clustering")
-            st.dataframe(df_cluster.groupby('Cluster')[vars_cluster].mean().round(2))
-            
-            # Gráfico 2D
-            fig = px.scatter(df_cluster, x=vars_cluster[0], y=vars_cluster[1], 
-                            color='Cluster', title="Clusters Automáticos")
-            st.plotly_chart(fig)
-
-    # =====================================
-    # ANÁLISE 6: PCA (Redução Dimensional)
-    # =====================================       
-
-    elif analise_tipo == "📉 6. PCA (Redução Dimensional)":
-        st.header("📉 6. PCA - Redução Dimensional")
-        vars_pca = st.multiselect("🔢 Variáveis", num_cols, default=num_cols[:4])
-        
-        if st.button("📉 Executar PCA", type="primary") and len(vars_pca)>=2:
-            from sklearn.decomposition import PCA
-            scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(df[vars_pca].dropna())
-            
-            pca = PCA()
-            X_pca = pca.fit_transform(X_scaled)
-            
-            st.subheader("📊 Variância Explicada")
-            var_exp = pd.DataFrame({
-                'Componente': [f'PC{i+1}' for i in range(len(pca.explained_variance_ratio_))],
-                'Variância %': (pca.explained_variance_ratio_*100).round(1)
-            })
-            st.dataframe(var_exp)
-            
-            fig = px.scatter(x=X_pca[:,0], y=X_pca[:,1], 
-                            title="PCA 2D - Primeiros 2 Componentes")
-            st.plotly_chart(fig)
-            
-            st.subheader("💡 Interpretação PCA - Loadings")
-            loadings = pd.DataFrame(
-                pca.components_.T * np.sqrt(pca.explained_variance_),
-                columns=[f'PC{i+1}' for i in range(len(vars_pca))],
-                index=vars_pca
-            )
-            st.dataframe(loadings.round(3).abs())  # .abs() mostra contribuição positiva
-
-            # Variância cumulativa
-            cum_var = (np.cumsum(pca.explained_variance_ratio_)*100).round(1)
-            st.metric("📊 PC1+PC2 explicam", f"{cum_var[1]}% da variância")
-
-
-
-   
     # =====================================
     # BARRA LATERAL: EXPORT
     # =====================================
@@ -453,16 +370,15 @@ if uploaded_file is not None or 'uploaded_df' in st.session_state:
         "text/csv"
     )
 
-
-# =====================================
-# ESTADO INICIAL (SEM DADOS)
-# =====================================
 else:
     st.info("👆 **Carregue CSV/Excel OU teste com dados automáticos**")
-
-    if st.button("🧪 Gerar Iris Dataset (teste)"):
+    
+    if st.button("🧪 Gerar Iris Dataset (teste)", type="primary"):
+        st.info("🔄 Carregando Iris Dataset...")
         from sklearn.datasets import load_iris
         iris = load_iris()
         df_test = pd.DataFrame(iris.data, columns=iris.feature_names)
+        df_test['target'] = iris.target
         st.session_state['uploaded_df'] = df_test
-        st.experimental_rerun()
+        st.success("✅ **Iris Dataset carregado!** (150 amostras, 5 colunas)")
+        st.rerun()
