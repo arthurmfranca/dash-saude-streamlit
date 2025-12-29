@@ -29,14 +29,26 @@ st.set_page_config(
     initial_sidebar_state="expanded"  # Sidebar sempre aberta
 )
 
-
 # Função utilitária: Export CSV (cache para performance)
 @st.cache_data  # 🚀 CACHE: executa 1x, reutiliza resultado
 def convert_df(df):
     """Converte DataFrame para bytes CSV (download)"""
     return df.to_csv(index=False).encode("utf-8")
 
+@st.cache_data
+def compute_descritiva(df, vars_analise):
+    """Cache estatísticas descritivas"""
+    return df[vars_analise].describe().round(3)
 
+@st.cache_data
+def compute_correlacao(df, num_cols):
+    """Cache matriz correlação"""
+    return df[num_cols].corr()
+
+@st.cache_data
+def top_regioes(df, col_casos, col_regiao):
+    return df.nlargest(10, col_casos)[[col_regiao, col_casos]].round(1)
+    
 # =============================================================================
 # INTERFACE PRINCIPAL
 # =============================================================================
@@ -49,12 +61,6 @@ st.markdown("""
 - 💡 Interpretação automática em português
 """)
 
-# =====================================
-# VARIÁVEIS GLOBAIS
-# =====================================
-num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-cat_cols = df.select_dtypes(exclude=[np.number]).columns.tolist()
-
 
 # =====================================
 # PASSO 1: UPLOAD DE DADOS
@@ -66,12 +72,23 @@ uploaded_file = st.file_uploader(
 )
 
 
-if uploaded_file is not None:
-    # Detecta formato automaticamente
-    if uploaded_file.name.endswith('.csv'):
-        df = pd.read_csv(uploaded_file, encoding="utf-8")
+# Permite usar dataset gerado via botão de teste (Iris)
+if uploaded_file is not None or 'uploaded_df' in st.session_state:
+    # Fonte: upload de arquivo ou dataset gerado em sessão
+    if 'uploaded_df' in st.session_state:
+        df = st.session_state.pop('uploaded_df')
     else:
-        df = pd.read_excel(uploaded_file)
+        # Detecta formato automaticamente
+        if uploaded_file.name.endswith('.csv'):
+            df = pd.read_csv(uploaded_file, encoding="utf-8")
+        else:
+            df = pd.read_excel(uploaded_file)
+
+    # =====================================
+    # VARIÁVEIS GLOBAIS
+    # =====================================
+    num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    cat_cols = df.select_dtypes(exclude=[np.number]).columns.tolist()
     
     # ✅ CONFIRMAÇÃO VISUAL
     col1, col2, col3, col4 = st.columns(4)
@@ -143,7 +160,7 @@ if uploaded_file is not None:
             st.subheader("📈 Tabela de Estatísticas Descritivas")
             
             # Tabela completa (transposta para melhor visualização)
-            desc_stats = df[vars_analise].describe().round(3).T
+            desc_stats = compute_descritiva(df, vars_analise)
             st.dataframe(desc_stats, use_container_width=True)
             
             # 💡 INTERPRETAÇÃO AUTOMÁTICA
@@ -216,7 +233,7 @@ if uploaded_file is not None:
         
         if len(num_cols) >= 2 and st.button("🔗 Calcular Correlação", type="primary"):
             # Matriz Pearson
-            corr_matrix = df[num_cols].corr()
+            corr_matrix = compute_correlacao(df, num_cols)
             
             # Heatmap interativo
             fig = px.imshow(
@@ -250,10 +267,11 @@ if uploaded_file is not None:
             col_casos = st.selectbox("📊 Casos/Óbitos", num_cols)
         with col2:
             col_regiao = st.selectbox("🏛️ Município/UF", cat_cols)
+            
         
         if st.button("🚨 TOP 10 Regiões", type="primary"):
             # TOP 10 genérico
-            top10 = df.nlargest(10, col_casos)[[col_regiao, col_casos]].round(1)
+            top10 = top_regioes(df, col_casos, col_regiao)
             top10.columns = ['Região', 'Valor']
             
             st.subheader("🔥 TOP 10 Regiões MAIS AFETADAS")
@@ -304,7 +322,39 @@ if uploaded_file is not None:
                     st.warning("❌ Poucos dados em um dos grupos")
             else:
                 st.warning("❓ Selecione variável com ≥2 grupos")
+        elif teste_tipo == "ANOVA (3+ grupos)":
 
+            grupo_var = st.selectbox("🏷️ Variável grupos", cat_cols)
+            grupos = df[grupo_var].dropna().unique()
+            
+            if len(grupos) >= 3 and st.button("🔬 Executar ANOVA", type="primary"):
+                grupo_dados = [df[df[grupo_var]==g][var_resposta].dropna() for g in grupos]
+                f_stat, p_val = stats.f_oneway(*grupo_dados)
+                
+                col1, col2 = st.columns(2)
+                col1.metric("F-statistic", f"{f_stat:.3f}")
+                col2.metric("p-valor", f"{p_val:.4f}")
+                
+                if p_val < 0.05:
+                    st.error(f"🚨 **REJEITA H0** - Pelo menos 1 grupo difere!")
+                else:
+                    st.success("ℹ️ **NÃO rejeita H0** - Grupos similares")
+        elif teste_tipo == "Qui-Quadrado":
+            col1_var = st.selectbox("🏷️ Variável 1 (categórica)", cat_cols)
+            col2_var = st.selectbox("🏷️ Variável 2 (categórica)", cat_cols)
+            
+            if st.button("🔬 Executar Qui-Quadrado", type="primary"):
+                contingency = pd.crosstab(df[col1_var], df[col2_var])
+                chi2, p_val, dof, expected = stats.chi2_contingency(contingency)
+                
+                col1, col2 = st.columns(2)
+                col1.metric("χ²", f"{chi2:.3f}")
+                col2.metric("p-valor", f"{p_val:.4f}")
+                
+                if p_val < 0.05:
+                    st.error("🚨 **REJEITA H0** - Variáveis são dependentes!")
+                else:
+                    st.success("ℹ️ **NÃO rejeita** - Variáveis independentes")
     # =====================================
     # ANÁLISE 5: Clustering K-Means
     # =====================================
@@ -319,6 +369,20 @@ if uploaded_file is not None:
             # Padroniza + clusteriza
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(df[vars_cluster].dropna())
+
+            st.subheader("📈 Elbow Method - Otimização K")
+            inertias = []
+            K_range = range(1, 11)
+            X_sample = X_scaled[:1000]  # Amostra para velocidade
+
+            for k in K_range:
+                kmeans_temp = KMeans(n_clusters=k, random_state=42, n_init=10)
+                kmeans_temp.fit(X_sample)
+                inertias.append(kmeans_temp.inertia_)
+
+            fig_elbow = px.line(x=list(K_range), y=inertias, 
+                            title="Escolha Ótima de K", markers=True)
+            st.plotly_chart(fig_elbow, use_container_width=True)
             
             kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
             clusters = kmeans.fit_predict(X_scaled)
@@ -360,8 +424,18 @@ if uploaded_file is not None:
             fig = px.scatter(x=X_pca[:,0], y=X_pca[:,1], 
                             title="PCA 2D - Primeiros 2 Componentes")
             st.plotly_chart(fig)
+            
+            st.subheader("💡 Interpretação PCA - Loadings")
+            loadings = pd.DataFrame(
+                pca.components_.T * np.sqrt(pca.explained_variance_),
+                columns=[f'PC{i+1}' for i in range(len(vars_pca))],
+                index=vars_pca
+            )
+            st.dataframe(loadings.round(3).abs())  # .abs() mostra contribuição positiva
 
-
+            # Variância cumulativa
+            cum_var = (np.cumsum(pca.explained_variance_ratio_)*100).round(1)
+            st.metric("📊 PC1+PC2 explicam", f"{cum_var[1]}% da variância")
 
 
 
@@ -384,12 +458,11 @@ if uploaded_file is not None:
 # ESTADO INICIAL (SEM DADOS)
 # =====================================
 else:
-    st.info("""
-    👆 **Carregue um dataset CSV/Excel para começar!**
-    
-    **Exemplos recomendados para estudo:**
-    - Iris (classificação)
-    - Boston Housing (regressão)  
-    - Titanic (análise exploratória)
-    - Qualquer base com ≥3 colunas numéricas
-    """)
+    st.info("👆 **Carregue CSV/Excel OU teste com dados automáticos**")
+
+    if st.button("🧪 Gerar Iris Dataset (teste)"):
+        from sklearn.datasets import load_iris
+        iris = load_iris()
+        df_test = pd.DataFrame(iris.data, columns=iris.feature_names)
+        st.session_state['uploaded_df'] = df_test
+        st.experimental_rerun()
